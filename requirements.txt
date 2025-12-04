@@ -1,5 +1,5 @@
 fastapi
-uvicorn
+uvicorn[standard]
 pydantic
 supabase
 python-multipart
@@ -11,5 +11,7 @@ librosa
 numpy
 openai
 google-generativeai
-opencv-python
+opencv-python-headless
 mediapipe
+reportlab
+starlette
