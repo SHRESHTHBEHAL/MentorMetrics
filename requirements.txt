@@ -5,3 +5,11 @@ supabase
 python-multipart
 python-dotenv
 moviepy
+openai-whisper
+pydub
+librosa
+numpy
+openai
+google-generativeai
+opencv-python
+mediapipe
