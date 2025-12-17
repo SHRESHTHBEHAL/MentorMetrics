@@ -33,6 +33,61 @@ SCORING_RUBRIC = {
     }
 }
 
+# Subject-specific rubric adjustments
+SUBJECT_RUBRICS = {
+    "general": SCORING_RUBRIC,
+    
+    "math": {
+        "engagement": {"audio": 0.10, "text": 0.15, "visual": 0.75},
+        "communication_clarity": {"audio": 0.20, "text": 0.60, "visual": 0.20},
+        "technical_correctness": {"audio": 0.05, "text": 0.90, "visual": 0.05},
+        "pacing_structure": {"audio": 0.50, "text": 0.50, "visual": 0.00},  # More structured
+        "interactive_quality": {"audio": 0.15, "text": 0.25, "visual": 0.60}  # Visual demonstrations matter
+    },
+    
+    "programming": {
+        "engagement": {"audio": 0.10, "text": 0.20, "visual": 0.70},
+        "communication_clarity": {"audio": 0.25, "text": 0.55, "visual": 0.20},
+        "technical_correctness": {"audio": 0.02, "text": 0.95, "visual": 0.03},  # Code accuracy critical
+        "pacing_structure": {"audio": 0.40, "text": 0.60, "visual": 0.00},  # Step-by-step structure
+        "interactive_quality": {"audio": 0.20, "text": 0.30, "visual": 0.50}
+    },
+    
+    "english": {
+        "engagement": {"audio": 0.25, "text": 0.15, "visual": 0.60},  # Voice expression matters
+        "communication_clarity": {"audio": 0.40, "text": 0.40, "visual": 0.20},  # Pronunciation key
+        "technical_correctness": {"audio": 0.10, "text": 0.80, "visual": 0.10},  # Grammar/vocab
+        "pacing_structure": {"audio": 0.80, "text": 0.20, "visual": 0.00},  # Rhythm and flow
+        "interactive_quality": {"audio": 0.30, "text": 0.20, "visual": 0.50}  # Discussion-based
+    },
+    
+    "science": {
+        "engagement": {"audio": 0.15, "text": 0.15, "visual": 0.70},
+        "communication_clarity": {"audio": 0.30, "text": 0.50, "visual": 0.20},
+        "technical_correctness": {"audio": 0.05, "text": 0.85, "visual": 0.10},  # Accuracy + demos
+        "pacing_structure": {"audio": 0.60, "text": 0.40, "visual": 0.00},
+        "interactive_quality": {"audio": 0.20, "text": 0.20, "visual": 0.60}  # Demonstrations
+    },
+    
+    "business": {
+        "engagement": {"audio": 0.20, "text": 0.15, "visual": 0.65},  # Presentation skills
+        "communication_clarity": {"audio": 0.35, "text": 0.45, "visual": 0.20},
+        "technical_correctness": {"audio": 0.05, "text": 0.85, "visual": 0.10},
+        "pacing_structure": {"audio": 0.60, "text": 0.40, "visual": 0.00},
+        "interactive_quality": {"audio": 0.25, "text": 0.25, "visual": 0.50}
+    }
+}
+
+# Subject metadata for UI
+SUBJECT_METADATA = {
+    "general": {"label": "General Teaching", "icon": "📚", "description": "Balanced evaluation for all subjects"},
+    "math": {"label": "Mathematics", "icon": "🔢", "description": "Focus on step-by-step explanations and visual demonstrations"},
+    "programming": {"label": "Programming/CS", "icon": "💻", "description": "Emphasis on code accuracy and structured explanations"},
+    "english": {"label": "English/Language", "icon": "📖", "description": "Focus on pronunciation, rhythm, and expression"},
+    "science": {"label": "Science", "icon": "🔬", "description": "Balance of accuracy and visual demonstrations"},
+    "business": {"label": "Business/Presentation", "icon": "💼", "description": "Emphasis on presentation skills and persuasion"}
+}
+
 def validate_rubric(rubric: Dict[str, Dict[str, float]]) -> bool:
     
     for category, weights in rubric.items():
@@ -44,21 +99,34 @@ def validate_rubric(rubric: Dict[str, Dict[str, float]]) -> bool:
 
 assert validate_rubric(SCORING_RUBRIC), "Default SCORING_RUBRIC weights do not sum to 1.0"
 
-def get_rubric(custom_weights: Dict[str, Dict[str, float]] = None) -> Dict[str, Dict[str, float]]:
+# Validate all subject rubrics
+for subject, rubric in SUBJECT_RUBRICS.items():
+    if subject != "general":
+        assert validate_rubric(rubric), f"Subject rubric '{subject}' weights do not sum to 1.0"
+
+def get_rubric(custom_weights: Dict[str, Dict[str, float]] = None, subject: str = None) -> Dict[str, Dict[str, float]]:
+    """Get scoring rubric, optionally for a specific subject."""
     
-    if custom_weights is None:
-        return deepcopy(SCORING_RUBRIC)
+    # Start with subject-specific or default rubric
+    if subject and subject in SUBJECT_RUBRICS:
+        base_rubric = deepcopy(SUBJECT_RUBRICS[subject])
+    else:
+        base_rubric = deepcopy(SCORING_RUBRIC)
     
-    rubric = deepcopy(SCORING_RUBRIC)
+    # Apply custom overrides if any
+    if custom_weights:
+        for category, weights in custom_weights.items():
+            if category in base_rubric:
+                base_rubric[category].update(weights)
+        
+        if not validate_rubric(base_rubric):
+            raise ValueError("Custom weights result in invalid rubric (weights must sum to 1.0 per category)")
     
-    for category, weights in custom_weights.items():
-        if category in rubric:
-            rubric[category].update(weights)
-    
-    if not validate_rubric(rubric):
-        raise ValueError("Custom weights result in invalid rubric (weights must sum to 1.0 per category)")
-    
-    return rubric
+    return base_rubric
+
+def get_rubric_for_subject(subject: str) -> Dict[str, Dict[str, float]]:
+    """Get the rubric for a specific subject."""
+    return get_rubric(subject=subject)
 
 def get_category_weight(category: str, modality: str, custom_rubric: Dict = None) -> float:
     
@@ -77,6 +145,8 @@ def get_rubric_summary() -> Dict[str, Any]:
     summary = {
         "categories": list(SCORING_RUBRIC.keys()),
         "modalities": ["audio", "text", "visual"],
+        "subjects": list(SUBJECT_RUBRICS.keys()),
+        "subject_metadata": SUBJECT_METADATA,
         "category_details": {}
     }
     
@@ -91,8 +161,12 @@ def get_rubric_summary() -> Dict[str, Any]:
 
 __all__ = [
     'SCORING_RUBRIC',
+    'SUBJECT_RUBRICS',
+    'SUBJECT_METADATA',
     'get_rubric',
+    'get_rubric_for_subject',
     'get_category_weight',
     'validate_rubric',
     'get_rubric_summary'
 ]
+

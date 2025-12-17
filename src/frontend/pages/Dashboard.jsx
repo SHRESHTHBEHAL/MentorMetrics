@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import DailyChallenge from '../components/dashboard/DailyChallenge';
+import QuoteOfTheDay from '../components/dashboard/QuoteOfTheDay';
 import {
     BarChart2,
     Activity,
@@ -12,9 +14,18 @@ import {
     Loader2,
     FileVideo,
     ArrowRight,
-    RefreshCw
+    RefreshCw,
+    Zap,
+    Flame
 } from 'lucide-react';
 import { api } from '../utils/api';
+import { useAuth } from '../context/AuthContext';
+import Achievements from '../components/gamification/Achievements';
+
+import WeakAreasPanel from '../components/analytics/WeakAreasPanel';
+import TimeMachine from '../components/analytics/TimeMachine';
+
+import CertificateGenerator from '../components/gamification/CertificateGenerator';
 
 const StatCard = ({ label, value, icon: Icon, subtitle, trend }) => (
     <div className="bg-white border-4 border-black p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px] transition-all">
@@ -156,6 +167,7 @@ const ScoreTrendChart = ({ history }) => {
 
 const Dashboard = () => {
     const navigate = useNavigate();
+    const { user } = useAuth();
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [data, setData] = useState(null);
@@ -212,16 +224,38 @@ const Dashboard = () => {
     return (
         <div className="space-y-8">
             {/* Header */}
-            <div className="flex items-center justify-between border-b-4 border-black pb-4">
-                <h2 className="text-4xl font-black uppercase tracking-tighter">Dashboard</h2>
-                <button
-                    onClick={handleRefresh}
-                    disabled={refreshing}
-                    className="px-4 py-2 bg-white text-black border-2 border-black font-bold uppercase hover:bg-black hover:text-white transition-all flex items-center"
-                >
-                    <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-                    Refresh
-                </button>
+            <div className="flex flex-col md:flex-row md:items-center justify-between border-b-4 border-black pb-4 gap-4">
+                <div className="flex items-center gap-4">
+                    <h2 className="text-4xl font-black uppercase tracking-tighter">Dashboard</h2>
+                    {/* Streak Visualizer */}
+                    <div className="hidden md:flex items-center space-x-2 bg-orange-500 text-white px-3 py-1 border-2 border-black transform rotate-2 animate-pulse">
+                        <Flame className="w-5 h-5 fill-white" />
+                        <span className="font-black uppercase tracking-wider">{summary?.streak || 0} Day Streak</span>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                    {/* Mobile Streak */}
+                    <div className="md:hidden flex items-center space-x-1 bg-orange-500 text-white px-2 py-1 border-2 border-black text-xs">
+                        <Flame className="w-3 h-3 fill-white" />
+                        <span className="font-black uppercase">{summary?.streak || 0} Days</span>
+                    </div>
+
+                    <button
+                        onClick={handleRefresh}
+                        disabled={refreshing}
+                        className="px-4 py-2 bg-white text-black border-2 border-black font-bold uppercase hover:bg-black hover:text-white transition-all flex items-center"
+                    >
+                        <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+                        Refresh
+                    </button>
+                </div>
+            </div>
+
+            {/* Daily Challenge & Motivation Row */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <DailyChallenge />
+                <QuoteOfTheDay />
             </div>
 
             {/* Main Stats */}
@@ -331,12 +365,48 @@ const Dashboard = () => {
                 </div>
             </div>
 
+            {/* Achievements / Gamification */}
+            <Achievements stats={{
+                ...summary,
+                highest_score: summary?.highest_score || summary?.avg_mentor_score || 0,
+                total_duration_minutes: summary?.total_duration_minutes || 0,
+                streak: summary?.streak || 0
+            }} />
+
+            {/* Certificate Generator */}
+            <CertificateGenerator user={user} stats={summary} />
+
+
+
+            {/* Time Machine - Progress Tracker */}
+            <TimeMachine />
+
+            {/* Comparative Analytics Row */}
+            <div className="grid grid-cols-1 gap-8">
+                <WeakAreasPanel
+                    userScores={{
+                        engagement: summary?.avg_engagement,
+                        communication_clarity: summary?.avg_communication,
+                        technical_correctness: summary?.avg_technical,
+                        pacing_structure: summary?.avg_pacing,
+                        interactive_quality: summary?.avg_engagement  // Use engagement as proxy
+                    }}
+                />
+            </div>
+
             {/* Quick Actions */}
             <div className="bg-white border-4 border-black p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
                 <h3 className="text-xl font-black uppercase mb-6 border-b-4 border-black pb-2">
                     Quick Actions
                 </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                    <button
+                        onClick={() => navigate('/live-practice')}
+                        className="p-4 bg-yellow-400 text-black font-bold uppercase border-2 border-black hover:bg-yellow-500 transition-all flex items-center justify-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px]"
+                    >
+                        <Zap className="h-5 w-5 mr-2" />
+                        Live Practice
+                    </button>
                     <button
                         onClick={() => navigate('/upload')}
                         className="p-4 bg-black text-white font-bold uppercase border-2 border-black hover:bg-white hover:text-black transition-all flex items-center justify-center"

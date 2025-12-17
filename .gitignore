@@ -44,3 +44,5 @@ Thumbs.db
 # Project Specific
 Solution.md
 uploads/
+logs/
+models/

@@ -6,6 +6,7 @@ import LoadingButton from './ui/LoadingButton';
 import { uploadVideo } from '../utils/uploadAdapter';
 import { processSession } from '../utils/api';
 import { useToast } from './ui/ToastProvider';
+import SubjectSelector from './upload/SubjectSelector';
 
 const VideoPicker = ({ onFileSelect, dragActive, onDragEnter, onDragLeave, onDragOver, onDrop }) => {
     const inputRef = useRef(null);
@@ -72,6 +73,7 @@ const UploadBox = () => {
     const [file, setFile] = useState(null);
     const [uploading, setUploading] = useState(false);
     const [progress, setProgress] = useState(0);
+    const [selectedSubject, setSelectedSubject] = useState('general');
 
     const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
@@ -113,9 +115,10 @@ const UploadBox = () => {
         setProgress(0);
 
         try {
+            // Pass subject to upload for backend processing
             const uploadResult = await uploadVideo(file, (percent) => {
                 setProgress(percent);
-            });
+            }, { subject: selectedSubject });
 
             if (uploadResult.user_id) {
                 localStorage.setItem('user_id', uploadResult.user_id);
@@ -124,7 +127,8 @@ const UploadBox = () => {
             showSuccess('Upload successful! Starting processing...');
 
             try {
-                await processSession(uploadResult.session_id);
+                // Pass subject to processing
+                await processSession(uploadResult.session_id, { subject: selectedSubject });
             } catch (processError) {
                 console.warn('Failed to auto-start processing:', processError);
             }
@@ -144,16 +148,22 @@ const UploadBox = () => {
     };
 
     return (
-        <div className="max-w-xl mx-auto mt-8">
+        <div className="max-w-2xl mx-auto mt-8">
             {!file ? (
-                <VideoPicker
-                    onFileSelect={handleFileSelection}
-                    dragActive={dragActive}
-                    onDragEnter={handleDrag}
-                    onDragLeave={handleDrag}
-                    onDragOver={handleDrag}
-                    onDrop={handleDrop}
-                />
+                <>
+                    <SubjectSelector
+                        selectedSubject={selectedSubject}
+                        onSubjectChange={setSelectedSubject}
+                    />
+                    <VideoPicker
+                        onFileSelect={handleFileSelection}
+                        dragActive={dragActive}
+                        onDragEnter={handleDrag}
+                        onDragLeave={handleDrag}
+                        onDragOver={handleDrag}
+                        onDrop={handleDrop}
+                    />
+                </>
             ) : (
                 <div className="bg-white p-6 sm:p-8 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] text-center space-y-8">
                     <div className="flex items-center justify-center space-x-4 text-black">
@@ -164,6 +174,12 @@ const UploadBox = () => {
                     </div>
                     <div className="text-sm font-bold text-gray-500 uppercase">
                         {(file.size / (1024 * 1024)).toFixed(2)} MB
+                    </div>
+
+                    {/* Show selected subject */}
+                    <div className="p-3 bg-gray-50 border-2 border-gray-200">
+                        <span className="text-sm font-bold text-gray-600 uppercase">Subject: </span>
+                        <span className="text-sm font-black uppercase">{selectedSubject}</span>
                     </div>
 
                     {uploading && (
@@ -195,3 +211,4 @@ const UploadBox = () => {
 };
 
 export default UploadBox;
+

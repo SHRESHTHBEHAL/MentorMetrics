@@ -11,6 +11,7 @@ import Logs from './pages/admin/Logs';
 import SessionDebug from './pages/debug/SessionDebug';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import LivePractice from './pages/LivePractice';
 import { ToastProvider } from './components/ui/ToastProvider';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -63,6 +64,11 @@ function App() {
                                 <Route path="/debug/session" element={
                                     <ProtectedRoute>
                                         <SessionDebug />
+                                    </ProtectedRoute>
+                                } />
+                                <Route path="/live-practice" element={
+                                    <ProtectedRoute>
+                                        <LivePractice />
                                     </ProtectedRoute>
                                 } />
                                 <Route path="/500" element={<ServerError />} />

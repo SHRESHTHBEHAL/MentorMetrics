@@ -43,6 +43,8 @@ app.include_router(download_api.router, prefix="/api/download", tags=["Download"
 app.include_router(analytics_api.router, prefix="/api", tags=["Analytics"])
 app.include_router(admin_api.router, prefix="/api/admin", tags=["Admin"])
 app.include_router(debug_api.router, prefix="/api/debug", tags=["Debug"])
+from src.backend.api import live_analysis
+app.include_router(live_analysis.router, prefix="/api/live", tags=["Live"])
 
 @app.get("/health")
 async def health_check():

@@ -1,13 +1,15 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, CheckSquare, Terminal, Cpu } from 'lucide-react';
+import Marquee from '../components/landing/Marquee';
+import HowItWorks from '../components/landing/HowItWorks';
 
 const Home = () => {
     return (
         <div className="min-h-screen bg-white text-black font-mono">
             {/* Hero Section */}
-            <div className="border-b-4 border-black">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 lg:py-32">
+            <div className="border-b-4 border-black min-h-[90vh] flex items-center">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 lg:py-0 w-full">
                     <div className="max-w-4xl">
                         <h1 className="text-4xl sm:text-6xl md:text-8xl font-black tracking-tighter mb-8 uppercase leading-none">
                             Elevate Your <span className="bg-black text-white px-4">Teaching</span>
@@ -23,11 +25,13 @@ const Home = () => {
                                     GET STARTED <ArrowRight className="h-6 w-6" />
                                 </button>
                             </Link>
-                            {/* View Demo Removed */}
                         </div>
                     </div>
                 </div>
             </div>
+
+            {/* Scrolling Marquee */}
+            <Marquee />
 
             {/* Features Grid */}
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
@@ -56,6 +60,19 @@ const Home = () => {
                         </div>
                     ))}
                 </div>
+            </div>
+
+            {/* How It Works Section */}
+            <HowItWorks />
+
+            {/* Bottom CTA */}
+            <div className="bg-black text-white py-24 border-t-4 border-black text-center">
+                <h2 className="text-4xl md:text-6xl font-black uppercase mb-8">Ready to Level Up?</h2>
+                <Link to="/upload">
+                    <button className="px-12 py-6 bg-white text-black text-2xl font-bold border-4 border-white hover:bg-black hover:text-white transition-all duration-200 shadow-[8px_8px_0px_0px_rgba(255,255,255,0.2)] hover:shadow-none hover:translate-x-[4px] hover:translate-y-[4px]">
+                        START ANALYZING NOW
+                    </button>
+                </Link>
             </div>
         </div>
     );
