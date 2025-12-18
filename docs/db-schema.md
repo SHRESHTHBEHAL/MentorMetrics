@@ -79,6 +79,14 @@ The database is hosted on Supabase (PostgreSQL).
 - `actionable_tips`: JSONB (Array)
 - `raw_llm_response`: JSONB
 - `created_at`: TIMESTAMP
+    
+### `analytics_events`
+- `id`: UUID (PK)
+- `event_name`: TEXT
+- `session_id`: UUID
+- `user_id`: UUID
+- `metadata`: JSONB
+- `timestamp`: TIMESTAMP
 
 ## Security
 Row Level Security (RLS) is enabled on all tables to ensure users can only access their own data.

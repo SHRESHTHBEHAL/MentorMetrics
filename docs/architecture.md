@@ -53,6 +53,8 @@ graph TD
     - API endpoints for upload, processing, and analytics.
     - Pipeline orchestration and job management.
     - Integration with Supabase and AI services.
+    - **Live Analysis**: Real-time websocket/HTTP streaming for immediate feedback.
+    - **Admin & Debug**: System monitoring, log access, and raw data inspection.
 
 ### 3. Analysis Pipeline
 The core intelligence of the platform, divided into three modalities:
@@ -70,7 +72,13 @@ The core intelligence of the platform, divided into three modalities:
     - Uses `Google Gemini` (via LangChain/Direct API) for semantic analysis.
     - Metrics: Technical Correctness, Communication Clarity, Pacing.
 
-### 4. Fusion & Scoring Engine
+### 4. Live Analysis Pipeline
+- **Real-time Processing**:
+    - Bypasses storage for low latency.
+    - **Visual**: MediaPipe processes frames for immediate eye contact and gesture feedback.
+    - **Audio**: Web Audio API (frontend) calculates volume and silence, synced with backend visuals.
+
+### 5. Fusion & Scoring Engine
 - **Fusion**: Combines normalized scores from all three modalities using a weighted average model.
 - **Scoring**: Generates a final "Mentor Score" (0-10) and category sub-scores.
 - **Reporting**: Generates a qualitative report with an Executive Summary, Strengths, Areas for Improvement, and Actionable Tips.

@@ -102,7 +102,51 @@ Most endpoints require authentication via Supabase.
     ]
     ```
 
-### 3. Utilities
+### 3. Live Analysis
+
+#### Analyze Live Frame
+- **URL**: `/live/analyze`
+- **Method**: `POST`
+- **Body**:
+    ```json
+    {
+      "image": "base64_encoded_frame_data"
+    }
+    ```
+- **Response**:
+    ```json
+    {
+      "eye_contact": true,
+      "gestures": 1,
+      "face_detected": true,
+      "pose_score": 0.8
+    }
+    ```
+
+### 4. Admin & Debug
+
+#### Admin Logs
+- **URL**: `/admin/logs`
+- **Method**: `GET`
+- **Query Params**: `event_type`, `session_id`, `user_id`, `limit`, `offset`
+- **Response**: Log entries from `analytics_events`.
+
+#### Debug Session Data
+- **URL**: `/debug/{session_id}`
+- **Method**: `GET`
+- **Response**: Raw data dump of all session components (transcript, scores, report, etc.) for debugging.
+
+### 5. Download & Utilities
+
+#### Download PDF Report
+- **URL**: `/download/report/{session_id}`
+- **Method**: `GET`
+- **Response**: PDF file download.
+
+#### Download Raw Data
+- **URL**: `/download/raw/{session_id}`
+- **Method**: `GET`
+- **Response**: JSON file download.
 
 #### Restart Processing
 - **URL**: `/restart/{session_id}`

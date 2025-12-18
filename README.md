@@ -12,6 +12,9 @@ MentorMetrics is an advanced multimodal AI coaching platform designed to evaluat
     - Real-time analytics and performance trends.
     - Score distribution and historical tracking.
     - Quick access to recent sessions and upload functionality.
+- **Live Analysis**:
+    - **Real-time Feedback**: Instant analysis of eye contact, gestures, and body movement using webcam feed.
+    - **Live Scoring**: Dynamic updates to performance metrics during practice sessions.
 - **Detailed Reports**:
     - Comprehensive scoring (0-10) across multiple dimensions.
     - Executive summary, strengths, and areas for improvement.
@@ -24,7 +27,7 @@ MentorMetrics is an advanced multimodal AI coaching platform designed to evaluat
 ## Project Structure
 
 - `/src/backend`: FastAPI backend application (Python)
-    - `/api`: REST API endpoints
+    - `/api`: REST API endpoints (`upload`, `process`, `results`, `live`, `admin`, `debug`)
     - `/pipelines`: Core AI processing logic (Audio, Visual, Text, Fusion)
     - `/services`: Business logic and database interactions
 - `/src/frontend`: React + Vite frontend application
