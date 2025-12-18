@@ -12,7 +12,7 @@ numpy
 openai
 google-generativeai
 opencv-python-headless
-mediapipe
+mediapipe==0.10.9
 reportlab
 starlette
 importlib-metadata>=4.4; python_version < "3.10"
