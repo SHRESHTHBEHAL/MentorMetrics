@@ -11,7 +11,10 @@ MENTOR_SCORE_WEIGHTS = {
     "interactive_quality": 0.10          # 10% - Nice to have
 }
 
-DEFAULT_PARAMETER_SCORE = 5.0  # Neutral/average
+# Score boost to make results more encouraging (adds 1.5 points, capped at 10)
+BASE_SCORE_BOOST = 1.5
+
+DEFAULT_PARAMETER_SCORE = 6.0  # Slightly above average default
 
 def compute_overall_score(
     fusion_scores: Dict[str, Any],
@@ -51,6 +54,9 @@ def compute_overall_score(
         pacing_structure * weights["pacing_structure"] +
         interactive_quality * weights["interactive_quality"]
     )
+    
+    # Apply base score boost to make results more encouraging
+    mentor_score = mentor_score + BASE_SCORE_BOOST
     
     mentor_score = _normalize_score(mentor_score)
     
@@ -103,31 +109,27 @@ def _normalize_score(score: Any) -> float:
         return DEFAULT_PARAMETER_SCORE
 
 def _score_to_grade(score: float) -> str:
-    
-    if score >= 9.5:
+    # More lenient grading scale
+    if score >= 9.0:
         return "A+"
-    elif score >= 9.0:
-        return "A"
     elif score >= 8.5:
-        return "A-"
+        return "A"
     elif score >= 8.0:
-        return "B+"
+        return "A-"
     elif score >= 7.5:
-        return "B"
+        return "B+"
     elif score >= 7.0:
-        return "B-"
+        return "B"
     elif score >= 6.5:
-        return "C+"
+        return "B-"
     elif score >= 6.0:
-        return "C"
+        return "C+"
     elif score >= 5.5:
-        return "C-"
+        return "C"
     elif score >= 5.0:
-        return "D+"
-    elif score >= 4.5:
-        return "D"
+        return "C-"
     elif score >= 4.0:
-        return "D-"
+        return "D"
     else:
         return "F"
 

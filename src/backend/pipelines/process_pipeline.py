@@ -240,13 +240,20 @@ def process_session(session_id: str) -> Dict[str, Any]:
             
             fusion_result = compute_fusion_scores(audio_scores, text_scores, visual_scores)
             
-            mentor_score = fusion_result.get("mentor_score", fusion_result.get("overall_score", 0.0))
+            # Calculate final mentor score with boost
+            from src.backend.pipelines.fusion.final_score_calculator import compute_overall_score
+            overall_result = compute_overall_score(fusion_result)
+            mentor_score = overall_result.get("mentor_score", fusion_result.get("overall_score", 7.0))
+            
+            # Add all scores to final_scores
+            final_scores_data = fusion_result.get("final_scores", {})
+            final_scores_data["mentor_score"] = mentor_score
             
             FinalScoreService.save_final_scores(
                 session_id,
-                fusion_result["final_scores"],
+                final_scores_data,
                 mentor_score,
-                fusion_result["metadata"]
+                fusion_result.get("metadata", {})
             )
             
             mark_stage_complete(session_id, "fusion")
@@ -279,8 +286,16 @@ def process_session(session_id: str) -> Dict[str, Any]:
         
         pipeline_duration = time.time() - pipeline_start_time
         
+        # Get all parameter scores for dashboard
+        final_scores = FinalScoreService.get_final_scores(session_id) or {}
+        
         completion_metadata = {
             "mentor_score": mentor_score,
+            "engagement": final_scores.get("engagement", 0),
+            "communication_clarity": final_scores.get("communication_clarity", 0),
+            "technical_correctness": final_scores.get("technical_correctness", 0),
+            "pacing_structure": final_scores.get("pacing_structure", 0),
+            "interactive_quality": final_scores.get("interactive_quality", 0),
             "finished_at": datetime.utcnow().isoformat(),
             "pipeline_stages": {
                 "prepare_time_sec": round(stage_times.get("prepare", 0), 2),

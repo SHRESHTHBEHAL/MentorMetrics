@@ -68,11 +68,35 @@ def get_dashboard_analytics(request: Request):
             "pacing_structure": []
         }
         
+        # Get all final_scores for completed sessions
+        session_ids = [s["id"] for s in completed_sessions]
+        final_scores_map = {}
+        if session_ids:
+            try:
+                fs_response = supabase.table("final_scores")\
+                    .select("*")\
+                    .in_("session_id", session_ids)\
+                    .execute()
+                for fs in (fs_response.data or []):
+                    final_scores_map[fs["session_id"]] = fs
+            except Exception as e:
+                logger.warning(f"Failed to fetch final_scores: {e}")
+        
         for session in completed_sessions:
             meta = session.get("completion_metadata") or {}
-            for key in metrics:
-                if val := meta.get(key):
-                    metrics[key].append(val)
+            sid = session["id"]
+            fs = final_scores_map.get(sid, {})
+            
+            # Get mentor_score from metadata or final_scores
+            mentor = meta.get("mentor_score") or fs.get("mentor_score")
+            if mentor:
+                metrics["mentor_score"].append(float(mentor))
+            
+            # Get other scores from metadata first, then final_scores
+            for key in ["engagement", "communication_clarity", "technical_correctness", "pacing_structure"]:
+                val = meta.get(key) or fs.get(key)
+                if val:
+                    metrics[key].append(float(val))
                     
         avgs = {
             k: round(sum(v) / len(v), 2) if v else 0 
@@ -92,7 +116,7 @@ def get_dashboard_analytics(request: Request):
                 "filename": s["filename"],
                 "status": s["status"],
                 "created_at": s["created_at"],
-                "mentor_score": (s.get("completion_metadata") or {}).get("mentor_score")
+                "mentor_score": (s.get("completion_metadata") or {}).get("mentor_score") or final_scores_map.get(s["id"], {}).get("mentor_score")
             }
             for s in sessions[:5]
         ]
@@ -107,14 +131,17 @@ def get_dashboard_analytics(request: Request):
             elif score < 8: score_distribution["6-8"] += 1
             else: score_distribution["8-10"] += 1
         
-        score_history = [
-            {
-                "date": s["created_at"][:10],
-                "score": (s.get("completion_metadata") or {}).get("mentor_score")
-            }
-            for s in completed_sessions[:10][::-1]
-            if (s.get("completion_metadata") or {}).get("mentor_score")
-        ]
+        score_history = []
+        for s in completed_sessions[:10][::-1]:
+            meta = s.get("completion_metadata") or {}
+            fs = final_scores_map.get(s["id"], {})
+            score = meta.get("mentor_score") or fs.get("mentor_score")
+            if score:
+                score_history.append({
+                    "date": s["created_at"][:10],
+                    "score": float(score)
+                })
+
         
         return {
             "summary": {
