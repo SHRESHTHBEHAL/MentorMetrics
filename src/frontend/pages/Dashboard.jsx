@@ -340,30 +340,7 @@ const Dashboard = () => {
                 </div>
             </div>
 
-            {/* Charts Row */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Score Distribution */}
-                <div className="bg-white border-4 border-black p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-                    <h3 className="text-xl font-black uppercase mb-6 border-b-4 border-black pb-2">
-                        Score Distribution
-                    </h3>
-                    {score_distribution && Object.values(score_distribution).some(v => v > 0) ? (
-                        <ScoreDistributionChart distribution={score_distribution} />
-                    ) : (
-                        <div className="h-32 flex items-center justify-center text-gray-400 font-bold uppercase">
-                            Complete more sessions to see distribution
-                        </div>
-                    )}
-                </div>
 
-                {/* Score Trend */}
-                <div className="bg-white border-4 border-black p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-                    <h3 className="text-xl font-black uppercase mb-6 border-b-4 border-black pb-2">
-                        Score Trend
-                    </h3>
-                    <ScoreTrendChart history={score_history} />
-                </div>
-            </div>
 
             {/* Achievements / Gamification */}
             <Achievements stats={{

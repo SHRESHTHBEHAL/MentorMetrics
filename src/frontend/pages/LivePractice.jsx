@@ -1,15 +1,23 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Play, Pause, RotateCcw, Mic, Camera, AlertCircle, Zap, Eye, Hand, Volume2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import {
+    Play, Pause, RotateCcw, Mic, Camera, AlertCircle, Zap, Eye, Hand, Volume2,
+    CheckCircle, XCircle, TrendingUp, Clock, Award, ArrowLeft
+} from 'lucide-react';
 import ChallengeWheel, { ChallengeOverlay, ChallengeResult } from '../components/live/ChallengeWheel';
 import LiveScorePanel from '../components/live/LiveScorePanel';
 import FeedbackBubble from '../components/live/FeedbackBubble';
 import { api } from '../utils/api';
 
 const LivePractice = () => {
+    const navigate = useNavigate();
     const [isRecording, setIsRecording] = useState(false);
     const [timer, setTimer] = useState(0);
     const [hasPermissions, setHasPermissions] = useState(false);
+    const [permissionError, setPermissionError] = useState(null);
     const [stream, setStream] = useState(null);
+    const [showSummary, setShowSummary] = useState(false);
+    const [connectionStatus, setConnectionStatus] = useState('idle'); // idle, connecting, connected, error
     const videoRef = useRef(null);
     const canvasRef = useRef(null);
 
@@ -35,13 +43,18 @@ const LivePractice = () => {
         eyeContactRatio: 0
     });
 
+    // Session summary (for end screen)
+    const [sessionSummary, setSessionSummary] = useState(null);
+
     // Detailed tracking for averaging
     const trackingRef = useRef({
         eyeContactFrames: 0,
         totalFrames: 0,
         speakingFrames: 0,
         totalAudioFrames: 0,
-        gestureFrames: 0
+        gestureFrames: 0,
+        analysisErrors: 0,
+        lastGestureTime: 0 // Cooldown to avoid counting same gesture repeatedly
     });
 
     // Feedback bubbles
@@ -98,8 +111,8 @@ const LivePractice = () => {
         analyserRef.current.getByteFrequencyData(dataArrayRef.current);
         const average = dataArrayRef.current.reduce((a, b) => a + b) / dataArrayRef.current.length;
 
-        // Threshold for "Speaking"
-        const isSpeaking = average > 10; // Adjust based on sensitivity
+        // Higher threshold to ignore background noise - only active speech
+        const isSpeaking = average > 30;
 
         trackingRef.current.totalAudioFrames++;
         if (isSpeaking) trackingRef.current.speakingFrames++;
@@ -113,62 +126,80 @@ const LivePractice = () => {
     };
 
     const analyzeFrame = async () => {
-        if (!videoRef.current || !canvasRef.current) return;
+        if (!videoRef.current || !canvasRef.current || !isRecording) return;
 
         const video = videoRef.current;
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');
 
+        // Check if video is ready
+        if (video.readyState < 2) return;
+
         // Draw current video frame to canvas
-        canvas.width = video.videoWidth / 4; // Downscale directly for speed
-        canvas.height = video.videoHeight / 4;
+        canvas.width = Math.floor(video.videoWidth / 4); // Downscale for speed
+        canvas.height = Math.floor(video.videoHeight / 4);
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
         // Convert to base64
-        const imageData = canvas.toDataURL('image/jpeg', 0.7);
+        const imageData = canvas.toDataURL('image/jpeg', 0.6);
 
         try {
+            setConnectionStatus('connected');
             const response = await api.post('/live/analyze', { image: imageData });
             const result = response.data;
 
             // Update tracking stats
             trackingRef.current.totalFrames++;
             if (result.eye_contact) trackingRef.current.eyeContactFrames++;
-            if (result.gestures > 0) trackingRef.current.gestureFrames++;
+
+            // Count gestures immediately (no cooldown - gestures are already filtered by backend)
+            if (result.gestures > 0) {
+                trackingRef.current.gestureFrames += result.gestures;
+            }
 
             // Calculate Metrics
             const eyeContactRatio = trackingRef.current.eyeContactFrames / Math.max(1, trackingRef.current.totalFrames);
-            const gestureScore = Math.min(10, result.gestures * 2); // Instant gesture intensity
-
-            // Calculate Overall Score (Simple weighted average of current performance)
-            // 40% Eye Contact, 30% Speaking Consistency, 30% Gestures
             const speakingRatio = trackingRef.current.speakingFrames / Math.max(1, trackingRef.current.totalAudioFrames);
-            const overall = (eyeContactRatio * 4) + (speakingRatio * 3) + (Math.min(1, trackingRef.current.gestureFrames / trackingRef.current.totalFrames) * 3 * 2);
-            // Normalized roughly to 0-10
+            // Gesture score based on cumulative gestures (more gestures = better, capped at 1.0 ratio)
+            const gestureRatio = Math.min(1, trackingRef.current.gestureFrames / 10); // 10+ gestures = full score
+
+            // Calculate Overall Score (weighted)
+            // 40% Eye Contact, 30% Speaking, 30% Gestures
+            const overall = (eyeContactRatio * 4) + (speakingRatio * 3) + (gestureRatio * 3);
 
             setLiveStats(prev => ({
                 ...prev,
                 eyeContactPercent: Math.round(eyeContactRatio * 100),
-                gestureCount: result.gestures, // Show CURRENT gestures count
+                gestureCount: trackingRef.current.gestureFrames, // Show TOTAL cumulative gestures
                 eyeContactRatio: eyeContactRatio,
                 overallScore: Math.round(Math.min(10, Math.max(0, overall)) * 10) / 10
             }));
 
-            // Generate Feedback Bubbles based on REAL data
-            if (Math.random() > 0.8) { // Don't spam
-                if (!result.eye_contact) showFeedback('warning', 'Look at camera', '📷');
-                else if (result.gestures > 0) showFeedback('positive', 'Nice gestures!', '👋');
-                else if (result.eye_contact) showFeedback('positive', 'Great eye contact!', '👀');
+            // Generate Feedback Bubbles based on REAL data (less frequently)
+            if (Math.random() > 0.85) {
+                if (!result.eye_contact && result.face_detected) {
+                    showFeedback('warning', 'Look at the camera!', '📷');
+                } else if (result.gestures > 0) {
+                    showFeedback('positive', 'Great gestures!', '👋');
+                } else if (result.eye_contact) {
+                    showFeedback('positive', 'Excellent eye contact!', '👀');
+                } else if (!result.face_detected) {
+                    showFeedback('warning', 'Stay in frame!', '🖼️');
+                }
             }
 
         } catch (err) {
+            trackingRef.current.analysisErrors++;
+            if (trackingRef.current.analysisErrors > 5) {
+                setConnectionStatus('error');
+            }
             console.error("Frame analysis failed:", err);
         }
     };
 
     const showFeedback = (type, message, icon) => {
         setCurrentFeedback({ type, message, icon });
-        setTimeout(() => setCurrentFeedback(null), 3000);
+        setTimeout(() => setCurrentFeedback(null), 2500);
     };
 
     const formatTime = (seconds) => {
@@ -186,7 +217,13 @@ const LivePractice = () => {
 
     const handleStartRecording = async () => {
         try {
-            const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            setPermissionError(null);
+            setConnectionStatus('connecting');
+
+            const mediaStream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+                audio: true
+            });
             setStream(mediaStream);
             setHasPermissions(true);
 
@@ -204,6 +241,8 @@ const LivePractice = () => {
             dataArrayRef.current = dataArray;
 
             setIsRecording(true);
+            setShowSummary(false);
+            setConnectionStatus('connected');
 
             // Reset tracking
             trackingRef.current = {
@@ -211,16 +250,37 @@ const LivePractice = () => {
                 totalFrames: 0,
                 speakingFrames: 0,
                 totalAudioFrames: 0,
-                gestureFrames: 0
+                gestureFrames: 0,
+                analysisErrors: 0
             };
 
         } catch (err) {
             console.error("Error accessing media devices:", err);
-            alert('Please allow camera and microphone access to use Live Practice.');
+            setConnectionStatus('error');
+            if (err.name === 'NotAllowedError') {
+                setPermissionError('Camera and microphone access denied. Please allow access in your browser settings.');
+            } else if (err.name === 'NotFoundError') {
+                setPermissionError('No camera or microphone found. Please connect a device.');
+            } else {
+                setPermissionError('Failed to access camera/microphone. Please try again.');
+            }
         }
     };
 
     const handleStopRecording = () => {
+        // Calculate session summary before stopping
+        const summary = {
+            duration: timer,
+            eyeContactPercent: liveStats.eyeContactPercent,
+            speakingPercent: liveStats.speakingPercent,
+            overallScore: liveStats.overallScore,
+            challengesCompleted: completedChallenges,
+            totalGestures: trackingRef.current.gestureFrames,
+            grade: getGrade(liveStats.overallScore)
+        };
+        setSessionSummary(summary);
+        setShowSummary(true);
+
         setIsRecording(false);
         if (stream) {
             stream.getTracks().forEach(track => track.stop());
@@ -229,10 +289,22 @@ const LivePractice = () => {
         if (audioContextRef.current) {
             audioContextRef.current.close();
         }
+        setConnectionStatus('idle');
+    };
+
+    const getGrade = (score) => {
+        if (score >= 9) return { letter: 'A+', color: 'text-green-600' };
+        if (score >= 8) return { letter: 'A', color: 'text-green-600' };
+        if (score >= 7) return { letter: 'B+', color: 'text-blue-600' };
+        if (score >= 6) return { letter: 'B', color: 'text-blue-600' };
+        if (score >= 5) return { letter: 'C', color: 'text-yellow-600' };
+        return { letter: 'D', color: 'text-orange-600' };
     };
 
     const handleReset = () => {
-        handleStopRecording();
+        if (isRecording) {
+            handleStopRecording();
+        }
         setTimer(0);
         setLiveStats({
             overallScore: 0,
@@ -243,12 +315,16 @@ const LivePractice = () => {
             eyeContactRatio: 0
         });
         setCompletedChallenges(0);
+        setShowSummary(false);
+        setSessionSummary(null);
+        setHasPermissions(false);
         trackingRef.current = {
             eyeContactFrames: 0,
             totalFrames: 0,
             speakingFrames: 0,
             totalAudioFrames: 0,
-            gestureFrames: 0
+            gestureFrames: 0,
+            analysisErrors: 0
         };
     };
 
@@ -271,6 +347,105 @@ const LivePractice = () => {
     const handleResultClose = () => {
         setChallengeResult(null);
     };
+
+    // Session Summary Screen
+    if (showSummary && sessionSummary) {
+        return (
+            <div className="min-h-screen bg-white text-black font-mono p-4 md:p-8">
+                <div className="max-w-2xl mx-auto">
+                    <div className="border-4 border-black p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+                        <div className="text-center mb-8">
+                            <Award className="w-16 h-16 mx-auto mb-4 text-yellow-500" />
+                            <h1 className="text-4xl font-black uppercase mb-2">Practice Complete!</h1>
+                            <p className="text-gray-600 font-bold">Here's how you did:</p>
+                        </div>
+
+                        {/* Big Score */}
+                        <div className="text-center mb-8 p-6 bg-gray-50 border-4 border-black">
+                            <p className="text-sm font-bold text-gray-500 uppercase mb-2">Overall Score</p>
+                            <p className="text-7xl font-black">{sessionSummary.overallScore.toFixed(1)}</p>
+                            <p className={`text-3xl font-black ${sessionSummary.grade.color}`}>
+                                Grade: {sessionSummary.grade.letter}
+                            </p>
+                        </div>
+
+                        {/* Stats Grid */}
+                        <div className="grid grid-cols-2 gap-4 mb-8">
+                            <div className="p-4 bg-blue-50 border-2 border-black text-center">
+                                <Eye className="w-6 h-6 mx-auto mb-2 text-blue-600" />
+                                <p className="text-2xl font-black">{sessionSummary.eyeContactPercent}%</p>
+                                <p className="text-xs font-bold text-gray-500 uppercase">Eye Contact</p>
+                            </div>
+                            <div className="p-4 bg-purple-50 border-2 border-black text-center">
+                                <Volume2 className="w-6 h-6 mx-auto mb-2 text-purple-600" />
+                                <p className="text-2xl font-black">{sessionSummary.speakingPercent}%</p>
+                                <p className="text-xs font-bold text-gray-500 uppercase">Speaking Time</p>
+                            </div>
+                            <div className="p-4 bg-green-50 border-2 border-black text-center">
+                                <Clock className="w-6 h-6 mx-auto mb-2 text-green-600" />
+                                <p className="text-2xl font-black">{formatTime(sessionSummary.duration)}</p>
+                                <p className="text-xs font-bold text-gray-500 uppercase">Duration</p>
+                            </div>
+                            <div className="p-4 bg-yellow-50 border-2 border-black text-center">
+                                <Zap className="w-6 h-6 mx-auto mb-2 text-yellow-600" />
+                                <p className="text-2xl font-black">{sessionSummary.challengesCompleted}</p>
+                                <p className="text-xs font-bold text-gray-500 uppercase">Challenges</p>
+                            </div>
+                        </div>
+
+                        {/* Tips based on performance */}
+                        <div className="p-4 bg-gray-100 border-2 border-black mb-8">
+                            <h3 className="font-black uppercase mb-3">💡 Tips for Improvement</h3>
+                            <ul className="space-y-2 text-sm font-bold">
+                                {sessionSummary.eyeContactPercent < 60 && (
+                                    <li className="flex items-start gap-2">
+                                        <XCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                                        Practice looking directly at the camera more often
+                                    </li>
+                                )}
+                                {sessionSummary.speakingPercent < 50 && (
+                                    <li className="flex items-start gap-2">
+                                        <XCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                                        Try to speak more - aim for 60%+ speaking time
+                                    </li>
+                                )}
+                                {sessionSummary.eyeContactPercent >= 60 && (
+                                    <li className="flex items-start gap-2">
+                                        <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
+                                        Great eye contact! Keep it up!
+                                    </li>
+                                )}
+                                {sessionSummary.overallScore >= 7 && (
+                                    <li className="flex items-start gap-2">
+                                        <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
+                                        Excellent performance! You're ready to teach!
+                                    </li>
+                                )}
+                            </ul>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex gap-4">
+                            <button
+                                onClick={handleReset}
+                                className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-black text-white font-bold border-4 border-black hover:bg-white hover:text-black transition-all"
+                            >
+                                <RotateCcw className="w-5 h-5" />
+                                Practice Again
+                            </button>
+                            <button
+                                onClick={() => navigate('/dashboard')}
+                                className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-white text-black font-bold border-4 border-black hover:bg-gray-100 transition-all"
+                            >
+                                <ArrowLeft className="w-5 h-5" />
+                                Dashboard
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-white text-black font-mono p-4 md:p-8">
@@ -298,6 +473,22 @@ const LivePractice = () => {
                         )}
                     </div>
                 </div>
+
+                {/* Permission Error */}
+                {permissionError && (
+                    <div className="mb-8 p-4 bg-red-100 border-4 border-red-500 flex items-center gap-4">
+                        <AlertCircle className="w-6 h-6 text-red-500 flex-shrink-0" />
+                        <div>
+                            <p className="font-bold text-red-700">{permissionError}</p>
+                            <button
+                                onClick={() => setPermissionError(null)}
+                                className="text-sm underline text-red-600 mt-1"
+                            >
+                                Dismiss
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 {/* Main Content Grid */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -333,6 +524,14 @@ const LivePractice = () => {
                                     <span className="text-sm font-bold">LIVE</span>
                                 </div>
                             )}
+
+                            {/* Connection Status */}
+                            {isRecording && connectionStatus === 'error' && (
+                                <div className="absolute bottom-4 left-4 flex items-center bg-orange-500 text-white px-3 py-1 border-2 border-black">
+                                    <AlertCircle className="w-4 h-4 mr-2" />
+                                    <span className="text-sm font-bold">Connection Issues</span>
+                                </div>
+                            )}
                         </div>
 
                         {/* Controls */}
@@ -342,9 +541,11 @@ const LivePractice = () => {
                                 {!isRecording ? (
                                     <button
                                         onClick={handleStartRecording}
-                                        className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-black text-white font-bold border-4 border-black hover:bg-white hover:text-black transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px]"
+                                        disabled={connectionStatus === 'connecting'}
+                                        className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-black text-white font-bold border-4 border-black hover:bg-white hover:text-black transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:shadow-none hover:translate-x-[2px] hover:translate-y-[2px] disabled:opacity-50"
                                     >
-                                        <Play className="h-5 w-5" /> START
+                                        <Play className="h-5 w-5" />
+                                        {connectionStatus === 'connecting' ? 'CONNECTING...' : 'START'}
                                     </button>
                                 ) : (
                                     <button
@@ -363,26 +564,28 @@ const LivePractice = () => {
                             </div>
                         </div>
 
-                        {/* Challenge Wheel */}
-                        <div className="border-4 border-black p-6 bg-yellow-50">
-                            <h3 className="font-black uppercase mb-6 border-b-4 border-black pb-2 flex items-center">
-                                <Zap className="w-5 h-5 mr-2 text-yellow-500" />
-                                Spin for a Challenge!
-                            </h3>
-                            <div className="flex flex-col items-center">
-                                <ChallengeWheel
-                                    onChallengeSelect={handleChallengeSelect}
-                                    isSpinning={isSpinning}
-                                    setIsSpinning={setIsSpinning}
-                                />
-                                {completedChallenges > 0 && (
-                                    <div className="mt-4 text-center">
-                                        <span className="text-sm font-bold text-gray-500 uppercase">Challenges Completed: </span>
-                                        <span className="text-2xl font-black text-green-600">{completedChallenges}</span>
-                                    </div>
-                                )}
+                        {/* Challenge Wheel - Only show when recording */}
+                        {isRecording && (
+                            <div className="border-4 border-black p-6 bg-yellow-50">
+                                <h3 className="font-black uppercase mb-6 border-b-4 border-black pb-2 flex items-center">
+                                    <Zap className="w-5 h-5 mr-2 text-yellow-500" />
+                                    Spin for a Challenge!
+                                </h3>
+                                <div className="flex flex-col items-center">
+                                    <ChallengeWheel
+                                        onChallengeSelect={handleChallengeSelect}
+                                        isSpinning={isSpinning}
+                                        setIsSpinning={setIsSpinning}
+                                    />
+                                    {completedChallenges > 0 && (
+                                        <div className="mt-4 text-center">
+                                            <span className="text-sm font-bold text-gray-500 uppercase">Challenges Completed: </span>
+                                            <span className="text-2xl font-black text-green-600">{completedChallenges}</span>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
-                        </div>
+                        )}
                     </div>
 
                     {/* Right Column - Live Stats & Tips */}
@@ -400,15 +603,15 @@ const LivePractice = () => {
                                 </li>
                                 <li className="flex items-start gap-2">
                                     <Hand className="w-4 h-4 mt-1 text-green-500 flex-shrink-0" />
-                                    <span>Use natural hand gestures</span>
+                                    <span>Use natural hand gestures while explaining</span>
                                 </li>
                                 <li className="flex items-start gap-2">
                                     <Volume2 className="w-4 h-4 mt-1 text-purple-500 flex-shrink-0" />
-                                    <span>Speak at 120-150 words/minute</span>
+                                    <span>Speak clearly at 120-150 words/minute</span>
                                 </li>
                                 <li className="flex items-start gap-2">
                                     <Mic className="w-4 h-4 mt-1 text-red-500 flex-shrink-0" />
-                                    <span>Pause for emphasis</span>
+                                    <span>Use pauses for emphasis and clarity</span>
                                 </li>
                             </ul>
                         </div>

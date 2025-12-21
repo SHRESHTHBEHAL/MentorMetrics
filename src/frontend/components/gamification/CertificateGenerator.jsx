@@ -49,14 +49,21 @@ const CertificateGenerator = ({ user, stats }) => {
         day: 'numeric'
     });
 
-    // Determine rank based on score
-    const score = stats?.highest_score || 0;
+    // Determine rank based on score - use avg_mentor_score as fallback
+    const score = stats?.highest_score || stats?.avg_mentor_score || 0;
+    const totalSessions = stats?.total_sessions || stats?.completed_sessions || 0;
+
+    // Calculate level based on sessions and score
+    const level = Math.max(1, Math.floor((totalSessions / 3) + (score / 2)));
+
     let rank = "MENTOR";
     let rankColor = "text-black";
 
     if (score >= 9) { rank = "MASTER MENTOR"; rankColor = "text-yellow-600"; }
     else if (score >= 8) { rank = "EXPERT COACH"; rankColor = "text-blue-600"; }
     else if (score >= 7) { rank = "SKILLED GUIDE"; rankColor = "text-green-600"; }
+    else if (score >= 5) { rank = "RISING STAR"; rankColor = "text-purple-600"; }
+
 
     return (
         <div className="mt-8">
@@ -110,11 +117,11 @@ const CertificateGenerator = ({ user, stats }) => {
                             </div>
                             <div className="text-center p-4 border-4 border-black bg-gray-50">
                                 <p className="text-sm font-bold text-gray-500 uppercase">Sessions</p>
-                                <p className="text-5xl font-black">{stats?.total_sessions || 0}</p>
+                                <p className="text-5xl font-black">{totalSessions}</p>
                             </div>
                             <div className="text-center p-4 border-4 border-black bg-gray-50">
                                 <p className="text-sm font-bold text-gray-500 uppercase">Level</p>
-                                <p className="text-5xl font-black">{Math.floor(score)}</p>
+                                <p className="text-5xl font-black">{level}</p>
                             </div>
                         </div>
                     </div>

@@ -120,7 +120,10 @@ def _estimate_gaze_direction(
     face_detection,
     frame_shape: Tuple[int, int, int]
 ) -> str:
-    
+    """
+    Estimate gaze direction based on face position in frame.
+    More lenient detection - if face is roughly centered, count as "forward" eye contact.
+    """
     try:
         bbox = face_detection.location_data.relative_bounding_box
         
@@ -128,16 +131,14 @@ def _estimate_gaze_direction(
         face_center_y = bbox.ymin + (bbox.height / 2)
         
         frame_center_x = 0.5
-        frame_center_y = 0.5
         
         horizontal_deviation = abs(face_center_x - frame_center_x)
         
-        vertical_position = face_center_y
+        # MORE LENIENT thresholds - count as "forward" if face is anywhere in center 60%
+        HORIZONTAL_THRESHOLD = 0.30  # 30% deviation from center (was 15%)
+        VERTICAL_DOWN_THRESHOLD = 0.75  # Only count as "down" if face is really low
         
-        HORIZONTAL_THRESHOLD = 0.15  # 15% deviation from center
-        VERTICAL_DOWN_THRESHOLD = 0.65  # Face center in lower 35% of frame
-        
-        if vertical_position > VERTICAL_DOWN_THRESHOLD:
+        if face_center_y > VERTICAL_DOWN_THRESHOLD:
             return "down"
         elif horizontal_deviation > HORIZONTAL_THRESHOLD:
             return "away"
@@ -145,7 +146,7 @@ def _estimate_gaze_direction(
             return "forward"
     
     except Exception:
-        return "forward"  # Default fallback
+        return "forward"  # Default to forward when face detected
 
 def _get_face_bbox(
     face_detection,

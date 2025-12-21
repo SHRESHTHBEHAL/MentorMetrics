@@ -168,28 +168,42 @@ export const ChallengeOverlay = ({ challenge, timeRemaining, onComplete, onFail,
     const [violations, setViolations] = useState(0);
     const [successes, setSuccesses] = useState(0);
     const [completed, setCompleted] = useState(false);
+    const [startGestureCount, setStartGestureCount] = useState(null);
+    const [startEyeContactFrames, setStartEyeContactFrames] = useState(null);
 
     const progress = ((challenge.duration - timeRemaining) / challenge.duration) * 100;
     const isTimerDone = timeRemaining <= 0;
 
-    // Check for early completion (e.g., gestures goal met before timer ends)
+    // Capture starting stats when challenge begins
+    useEffect(() => {
+        if (startGestureCount === null && stats?.gestureCount !== undefined) {
+            setStartGestureCount(stats.gestureCount);
+        }
+    }, [stats?.gestureCount, startGestureCount]);
+
+    // Calculate gestures DURING this challenge
+    const gesturesDuringChallenge = (stats?.gestureCount || 0) - (startGestureCount || 0);
+
+    // Check for early completion or violations
     useEffect(() => {
         if (completed) return;
 
-        // Check if goal is already met for gesture challenges
+        // Check if gesture goal is met
         if (challenge.detectType === 'gesture_count' &&
-            (stats?.gestureCount || 0) >= challenge.targetGestures) {
+            gesturesDuringChallenge >= challenge.targetGestures) {
             setCompleted(true);
             onComplete();
             return;
         }
 
-        // Check if eye contact goal is met
-        if (challenge.detectType === 'eye_contact' &&
-            (stats?.eyeContactRatio || 0) >= challenge.targetEyeContact) {
-            // Don't complete early for eye contact - need to maintain it
+        // Track eye contact violations (each frame without eye contact when needed)
+        if (challenge.detectType === 'eye_contact') {
+            if (stats?.eyeContactPercent < 50) {
+                // Not looking at camera - increment violations
+                setViolations(v => v + 1);
+            }
         }
-    }, [stats, challenge, completed, onComplete]);
+    }, [stats, challenge, completed, onComplete, gesturesDuringChallenge]);
 
     // Handle timer completion
     useEffect(() => {
@@ -205,10 +219,12 @@ export const ChallengeOverlay = ({ challenge, timeRemaining, onComplete, onFail,
                     success = successes >= 2;
                     break;
                 case 'gesture_count':
-                    success = (stats?.gestureCount || 0) >= challenge.targetGestures;
+                    success = gesturesDuringChallenge >= challenge.targetGestures;
                     break;
                 case 'eye_contact':
-                    success = (stats?.eyeContactRatio || 0) >= challenge.targetEyeContact;
+                    // Calculate average eye contact during challenge
+                    const avgEyeContact = (stats?.eyeContactPercent || 0) / 100;
+                    success = avgEyeContact >= challenge.targetEyeContact;
                     break;
                 case 'pace':
                     success = true; // Default to success for pace
@@ -223,7 +239,8 @@ export const ChallengeOverlay = ({ challenge, timeRemaining, onComplete, onFail,
                 onFail();
             }
         }
-    }, [isTimerDone, completed, violations, successes, stats, challenge, onComplete, onFail]);
+    }, [isTimerDone, completed, violations, successes, stats, challenge, onComplete, onFail, gesturesDuringChallenge]);
+
 
     return (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
@@ -279,11 +296,11 @@ export const ChallengeOverlay = ({ challenge, timeRemaining, onComplete, onFail,
 
                 {challenge.detectType === 'gesture_count' && (
                     <div className="text-center p-4 bg-blue-50 border-2 border-blue-300">
-                        <p className="text-sm font-bold text-blue-700 uppercase">Gestures Detected</p>
+                        <p className="text-sm font-bold text-blue-700 uppercase">Gestures This Challenge</p>
                         <p className="text-4xl font-black text-blue-600">
-                            {stats?.gestureCount || 0} / {challenge.targetGestures}
+                            {gesturesDuringChallenge} / {challenge.targetGestures}
                         </p>
-                        {(stats?.gestureCount || 0) >= challenge.targetGestures && (
+                        {gesturesDuringChallenge >= challenge.targetGestures && (
                             <p className="text-xs text-green-600 font-bold">✓ Goal reached!</p>
                         )}
                     </div>
