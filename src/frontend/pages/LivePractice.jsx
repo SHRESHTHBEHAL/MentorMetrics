@@ -60,6 +60,12 @@ const LivePractice = () => {
     // Feedback bubbles
     const [currentFeedback, setCurrentFeedback] = useState(null);
 
+    // Speech Recognition for word-based challenges
+    const recognitionRef = useRef(null);
+    const [transcript, setTranscript] = useState('');
+    const [wordViolations, setWordViolations] = useState(0);
+    const [bonusWords, setBonusWords] = useState(0);
+
     // Timer for recording duration
     useEffect(() => {
         let interval;
@@ -254,6 +260,30 @@ const LivePractice = () => {
                 analysisErrors: 0
             };
 
+            // Setup Speech Recognition for word-based challenges
+            if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                const recognition = new SpeechRecognition();
+                recognition.continuous = true;
+                recognition.interimResults = true;
+                recognition.lang = 'en-US';
+
+                recognition.onresult = (event) => {
+                    let fullTranscript = '';
+                    for (let i = 0; i < event.results.length; i++) {
+                        fullTranscript += event.results[i][0].transcript;
+                    }
+                    setTranscript(fullTranscript.toLowerCase());
+                };
+
+                recognition.onerror = (event) => {
+                    console.log('Speech recognition error:', event.error);
+                };
+
+                recognition.start();
+                recognitionRef.current = recognition;
+            }
+
         } catch (err) {
             console.error("Error accessing media devices:", err);
             setConnectionStatus('error');
@@ -289,7 +319,15 @@ const LivePractice = () => {
         if (audioContextRef.current) {
             audioContextRef.current.close();
         }
+        // Stop speech recognition
+        if (recognitionRef.current) {
+            recognitionRef.current.stop();
+            recognitionRef.current = null;
+        }
         setConnectionStatus('idle');
+        setTranscript('');
+        setWordViolations(0);
+        setBonusWords(0);
     };
 
     const getGrade = (score) => {
@@ -645,6 +683,7 @@ const LivePractice = () => {
                     onComplete={handleChallengeComplete}
                     onFail={handleChallengeFail}
                     stats={liveStats}
+                    transcript={transcript}
                 />
             )}
 

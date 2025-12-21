@@ -164,15 +164,24 @@ const ChallengeWheel = ({ onChallengeSelect, isSpinning, setIsSpinning }) => {
 };
 
 // Challenge Overlay (shows active challenge)
-export const ChallengeOverlay = ({ challenge, timeRemaining, onComplete, onFail, stats }) => {
+export const ChallengeOverlay = ({ challenge, timeRemaining, onComplete, onFail, stats, transcript = '' }) => {
     const [violations, setViolations] = useState(0);
     const [successes, setSuccesses] = useState(0);
     const [completed, setCompleted] = useState(false);
     const [startGestureCount, setStartGestureCount] = useState(null);
-    const [startEyeContactFrames, setStartEyeContactFrames] = useState(null);
+    const [lastTranscriptLength, setLastTranscriptLength] = useState(0);
 
     const progress = ((challenge.duration - timeRemaining) / challenge.duration) * 100;
     const isTimerDone = timeRemaining <= 0;
+
+    // Forbidden words for different challenges
+    const FORBIDDEN_WORDS = {
+        'no_filler': ['um', 'uh', 'like', 'actually', 'basically', 'you know', 'so yeah'],
+        'no_i': ['i ', ' i ', "i'm", "i've", "i'll", "i'd"]
+    };
+
+    // Bonus words for pirate challenge
+    const PIRATE_WORDS = ['arrr', 'arr', 'matey', 'ahoy', 'avast', 'aye', 'ye', 'shiver', 'landlubber'];
 
     // Capture starting stats when challenge begins
     useEffect(() => {
@@ -183,6 +192,38 @@ export const ChallengeOverlay = ({ challenge, timeRemaining, onComplete, onFail,
 
     // Calculate gestures DURING this challenge
     const gesturesDuringChallenge = (stats?.gestureCount || 0) - (startGestureCount || 0);
+
+    // Check transcript for forbidden/bonus words
+    useEffect(() => {
+        if (completed || !transcript) return;
+
+        // Only check new words (by comparing length)
+        if (transcript.length <= lastTranscriptLength) return;
+
+        const newText = transcript.slice(lastTranscriptLength).toLowerCase();
+        setLastTranscriptLength(transcript.length);
+
+        // Check for forbidden words
+        if (challenge.detectType === 'forbidden_words') {
+            const forbiddenList = challenge.id === 'no_i' ? FORBIDDEN_WORDS['no_i'] : FORBIDDEN_WORDS['no_filler'];
+            for (const word of forbiddenList) {
+                if (newText.includes(word)) {
+                    setViolations(v => v + 1);
+                    break; // Only count once per transcript update
+                }
+            }
+        }
+
+        // Check for bonus words (pirate mode)
+        if (challenge.detectType === 'bonus_words') {
+            for (const word of PIRATE_WORDS) {
+                if (newText.includes(word)) {
+                    setSuccesses(s => s + 1);
+                    break;
+                }
+            }
+        }
+    }, [transcript, challenge, completed, lastTranscriptLength]);
 
     // Check for early completion or violations
     useEffect(() => {
